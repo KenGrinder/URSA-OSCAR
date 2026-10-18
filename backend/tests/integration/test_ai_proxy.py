@@ -334,6 +334,97 @@ def test_openai_compat_body_sends_max_tokens_when_capped():
     assert body["stream_options"] == {"include_usage": True}
 
 
+# -------------------------------------------------------------------------
+# 1.1.18 — Lemonade-upgrade contract: local env key + no-think probe.
+# -------------------------------------------------------------------------
+
+
+def test_resolve_local_api_key_is_scoped_to_local(monkeypatch):
+    """The security core: the LEMONADE_API_KEY env can ONLY ever fill a
+    local provider's key, and a stored key always wins. For any cloud
+    provider the env is never even read — the leak is structurally
+    unreachable, not merely unlikely."""
+    from ursa_oscar.ai_proxy import _resolve_local_api_key
+
+    monkeypatch.setenv("LEMONADE_API_KEY", "env-local-key")
+
+    # Local + no stored key -> env fills it.
+    assert _resolve_local_api_key("local", None) == "env-local-key"
+    assert _resolve_local_api_key("local", "") == "env-local-key"
+    # Local + a stored key -> stored wins, env ignored.
+    assert _resolve_local_api_key("local", "stored-key") == "stored-key"
+    # Cloud providers NEVER read the env, even with a stored key absent.
+    for cloud in ("openai", "gemini", "claude", "openrouter", "groq", "custom"):
+        assert _resolve_local_api_key(cloud, None) is None
+        assert _resolve_local_api_key(cloud, "sk-real") == "sk-real"
+
+
+def test_resolve_local_api_key_none_when_no_env(monkeypatch):
+    from ursa_oscar.ai_proxy import _resolve_local_api_key
+    monkeypatch.delenv("LEMONADE_API_KEY", raising=False)
+    assert _resolve_local_api_key("local", None) is None
+
+
+def test_build_adapter_attaches_env_key_only_for_local(monkeypatch):
+    """End-to-end through the real path: the env key becomes a Bearer
+    header on a LOCAL adapter, and is never attached to a cloud adapter."""
+    monkeypatch.setenv("LEMONADE_API_KEY", "env-local-key")
+
+    local = build_adapter("local", {"endpoint_url": "http://box:13305/v1", "model": "gemma"}, None)
+    assert local is not None
+    assert local.extra_headers.get("Authorization") == "Bearer env-local-key"
+
+    # A cloud provider with no stored key must NOT pick up the local env key.
+    cloud = build_adapter("openai", {"model": "gpt-4o"}, None)
+    assert cloud is not None
+    assert "Authorization" not in cloud.extra_headers
+
+
+def test_build_adapter_stored_key_beats_env_for_local(monkeypatch):
+    monkeypatch.setenv("LEMONADE_API_KEY", "env-local-key")
+    local = build_adapter("local", {"endpoint_url": "http://box:13305/v1", "model": "gemma"}, "stored-key")
+    assert local.extra_headers.get("Authorization") == "Bearer stored-key"
+
+
+async def test_test_connection_probe_disables_thinking(monkeypatch):
+    """Post-upgrade the local box thinks by default; a 1-token probe would
+    spend that token on reasoning and come back empty, misreporting a
+    healthy box. The probe must send the NESTED
+    chat_template_kwargs.enable_thinking=false (the only lever that works).
+    Capture the body actually put on the wire."""
+    captured: dict = {}
+
+    class _FakeResp:
+        status_code = 200
+        text = "{}"
+        def json(self):
+            return {"model": "gemma", "usage": {"prompt_tokens": 1}}
+
+    class _FakeClient:
+        def __init__(self, *a, **kw):
+            captured["timeout"] = kw.get("timeout")
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *a):
+            return False
+        async def post(self, url, json=None, headers=None):
+            captured["body"] = json
+            captured["headers"] = headers
+            return _FakeResp()
+
+    monkeypatch.setattr("ursa_oscar.ai_proxy.providers.openai_compat.httpx.AsyncClient", _FakeClient)
+
+    adapter = OpenAiCompatAdapter(
+        api_key="k", endpoint="http://box:13305/v1", model="gemma",
+        timeout_seconds=300.0,
+    )
+    result = await adapter.test_connection()
+    assert result.ok is True
+    assert captured["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+    # Structured timeout with a short connect so a dead box fails fast.
+    assert captured["timeout"].connect == 15.0
+
+
 def test_config_store_max_output_tokens_range_guarded(tmp_path):
     """The operator knob is range-guarded like timeout_seconds — a value
     below the floor or above the ceiling is rejected at the schema."""

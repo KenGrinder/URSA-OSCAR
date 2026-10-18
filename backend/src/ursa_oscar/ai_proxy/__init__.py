@@ -11,6 +11,8 @@ Public surface for the rest of the API container:
   - ``execute_tool(name, args, api_base_url) -> dict`` (re-exported from tools)
   - ``render_system_prompt(...)`` (re-exported from prompt)
 """
+import os
+
 from .providers.base import (  # noqa: F401
     AiMessage,
     AiStreamEvent,
@@ -72,6 +74,33 @@ def _effective_max_tokens(provider_id: str, configured: int | None) -> int | Non
     return None
 
 
+# 1.1.18 — env var for a local inference server that has turned on auth.
+# Cross-fleet convention (the Lemonade box upgrade of ~2026-10-17 can now
+# require a key). Deliberately NOT prefixed URSA_OSCAR_: Kevin sets ONE
+# value across every sibling app that points at the shared box.
+LOCAL_API_KEY_ENV = "LEMONADE_API_KEY"
+
+
+def _resolve_local_api_key(provider_id: str, api_key: str | None) -> str | None:
+    """Fill in the local server's API key from the environment when the
+    operator hasn't stored one in Settings.
+
+    Scoped to ``provider_id == "local"`` ON PURPOSE: this guarantees the
+    env key can NEVER be attached to a cloud provider's request. It's not
+    "unlikely" to leak — it's structurally unreachable, because any non-local
+    provider returns before the env is even read (the "unreachable, not
+    unlikely" canon). Precedence: a key the operator stored in Settings
+    always wins; the env is only a fallback. Safe to set before the box
+    turns auth on — an absent/empty env changes nothing.
+    """
+    if provider_id != "local":
+        return api_key
+    if api_key:
+        return api_key
+    env_key = os.environ.get(LOCAL_API_KEY_ENV, "").strip()
+    return env_key or None
+
+
 def build_adapter(provider_id: str, config_dict: dict, api_key: str | None):
     """Pick the right adapter class for a provider id and wire it with
     the operator's stored config + decrypted API key. Returns ``None``
@@ -80,6 +109,12 @@ def build_adapter(provider_id: str, config_dict: dict, api_key: str | None):
     preset = get_preset(provider_id)
     if preset is None:
         return None
+
+    # 1.1.18 — local-only env fallback for a box that now requires a key.
+    # Resolved here, in the one place every caller funnels through, so the
+    # scoping (local-only) holds for chat AND the test probe without either
+    # endpoint needing to know about it.
+    api_key = _resolve_local_api_key(provider_id, api_key)
 
     endpoint = (
         config_dict.get("endpoint_url")

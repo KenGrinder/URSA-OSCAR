@@ -65,8 +65,15 @@ def _configure_logging() -> None:
     )
     pkg.addHandler(handler)
     pkg.setLevel(logging.INFO)
-    # Don't double-emit if something ever adds a root handler.
-    pkg.propagate = False
+    # 1.1.18 — do NOT set propagate=False here. 1.1.16 did, to avoid a
+    # theoretical double-emit if something ever added a root handler — but
+    # under uvicorn root has no handler, so there was nothing to double. The
+    # real cost was test isolation: once the app lifespan ran in a pytest
+    # session, propagate=False silenced every ursa_oscar.* logger for
+    # caplog (which captures through a root handler), making any later
+    # caplog-based test fail depending purely on run order. Leaving
+    # propagation on costs nothing in production and keeps the suite
+    # order-independent.
 
 
 @asynccontextmanager

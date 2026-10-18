@@ -1,6 +1,7 @@
 """Shared pytest fixtures for URSA-OSCAR backend tests."""
 from __future__ import annotations
 
+import logging
 from datetime import date as date_t
 from pathlib import Path
 
@@ -8,6 +9,33 @@ import pytest
 
 from ursa_oscar.storage.db import DuckDBManager
 from ursa_oscar.storage.migrations import apply_migrations
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ursa_logger():
+    """Restore the ``ursa_oscar`` package logger around every test.
+
+    1.1.18 — ``main._configure_logging()`` is production app wiring: on app
+    startup it attaches a handler and sets the ``ursa_oscar`` logger to INFO
+    so operators actually see mint/renewal/migration lines in ``docker
+    logs``. Correct in a one-process container — but pytest runs the whole
+    suite in ONE process, so once any test triggers the app lifespan that
+    global mutation BLEEDS into every later test. That made caplog-based
+    tests (e.g. test_migrations) pass or fail purely on run order: the INFO
+    level leaks a setup-phase record into a later ``caplog`` assertion, and
+    (pre-1.1.18) propagate=False silenced caplog entirely. Snapshot and
+    restore the logger's level/handlers/propagate per test so the suite is
+    order-independent without weakening the production logging."""
+    pkg = logging.getLogger("ursa_oscar")
+    saved_level = pkg.level
+    saved_handlers = pkg.handlers[:]
+    saved_propagate = pkg.propagate
+    try:
+        yield
+    finally:
+        pkg.setLevel(saved_level)
+        pkg.handlers[:] = saved_handlers
+        pkg.propagate = saved_propagate
 
 
 # Resolves to backend/tests/regression/fixtures/nights/oscar-reference/ — the

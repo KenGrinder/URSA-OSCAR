@@ -104,12 +104,24 @@ class OpenAiCompatAdapter(ProviderAdapter):
             "messages": [{"role": "user", "content": "ping"}],
             "max_tokens": 1,
             "stream": False,
+            # 1.1.18 — this is a deterministic 1-token probe, the textbook
+            # case the Lemonade-upgrade note warns about: post-upgrade the
+            # local server runs with reasoning ON by default, so a single
+            # allowed token is spent in the hidden reasoning channel and the
+            # probe comes back with empty content — the "Test connection"
+            # button misreporting a perfectly healthy box. The ONLY lever
+            # that disables it is the NESTED chat_template_kwargs field; a
+            # top-level enable_thinking is dropped silently. Harmless to a
+            # server that doesn't recognize the field (it's extra JSON).
+            "chat_template_kwargs": {"enable_thinking": False},
         }
-        # 1.1.11 — Test connection is a 1-token probe; use a short
-        # timeout (30s or the operator's setting, whichever is smaller)
-        # so the Settings-page test button doesn't hang for 5 minutes
-        # against an unreachable endpoint.
-        test_timeout = min(30.0, float(self.timeout_seconds or 30.0))
+        # 1.1.11 — Test connection is a 1-token probe; keep it short so the
+        # Settings-page test button doesn't hang against an unreachable
+        # endpoint. 1.1.18 — structured timeout with a short connect so a
+        # dead/wiped box fails fast on the connect leg instead of burning
+        # the whole read window.
+        read_cap = min(30.0, float(self.timeout_seconds or 30.0))
+        test_timeout = httpx.Timeout(read_cap, connect=15.0)
         try:
             async with httpx.AsyncClient(timeout=test_timeout) as client:
                 resp = await client.post(url, json=body, headers=headers)
