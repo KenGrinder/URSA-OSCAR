@@ -4,6 +4,16 @@ URSA-OSCAR ships as four Docker images that are versioned together. The version 
 
 ## Current version
 
+**1.1.18** — Local-LLM request contract updated for the upgraded inference box. Keeps the AI assistant working after a server-side thinking/auth change.
+
+A sibling homelab upgraded its self-hosted inference server (~Oct 2026) and three request behaviours changed for every caller. URSA was already hardened against most of it by 1.1.11 and 1.1.14 — it captures the reasoning channel and falls back to it when the answer is empty, sends a generous 4000-token cap to local models, and uses a structured timeout with a 300-second read for local providers. Three smaller gaps are closed here:
+
+- **Thinking on the connection probe.** Post-upgrade these servers run with reasoning *on* by default, and the only switch that disables it is the nested `chat_template_kwargs.enable_thinking` field (a top-level flag is ignored). URSA's one deterministic call is the Settings → "Test connection" probe, which asks for a single token — with thinking on, that token is spent in the reasoning channel and the probe comes back empty, making the button misreport a perfectly healthy server. The probe now disables thinking so it tests real reachability again. Ordinary chat is unchanged (thinking is wanted there, and URSA already handles it).
+- **Fail-fast probe timeout.** The probe now uses a structured timeout with a short 15-second connect, so a wiped or unreachable server fails quickly instead of hanging the whole window.
+- **Optional local-server API key from the environment.** If your local inference server starts requiring an API key, you can set `LEMONADE_API_KEY` in the API container's environment and URSA sends it as a Bearer token — but *only* for the Local LLM provider, and only when you haven't already stored a key in Settings. It is never attached to a cloud provider's request. Setting it in Settings still works and takes precedence; the environment variable is just a convenience for operators who point several apps at the same box.
+
+This release does not touch cloud providers (Claude, OpenAI, Gemini, OpenRouter, Groq). URSA reaches Gemini through its OpenAI-compatible endpoint, so the native-SDK Gemini contract changes in the sibling note do not apply here. Also fixes a test-suite ordering fragility introduced alongside the 1.1.16 logging work.
+
 **1.1.17** — MCP OAuth sessions now survive a container restart. Fixes the re-authorize-on-every-redeploy annoyance that surfaced right after the 1.1.16 deploy.
 
 Distinct from 1.1.16, and a different auth leg. 1.1.16 fixed the *inner* leg (the MCP's service token to URSA's own API). This is the *outer* leg: the OAuth session between an external client (claude.ai, KAIROS) and the MCP. Right after redeploying 1.1.16, reconnecting KAIROS returned `token endpoint failed: HTTP 401 — invalid_grant: refresh token does not exist`.
@@ -170,7 +180,8 @@ The path to 1.0 is captured in the Docs/WIP/ build handovers in the repository. 
 - **1.1.14** — AI empty-answer trap (local max_tokens default + operator knob) + per-turn observability (token line + context breakdown + truncation flag)
 - **1.1.15** — AI metric vocabulary derived from the resolver; kills the wasted tool round on metric questions
 - **1.1.16** — Service tokens self-renew (no more MCP/watcher 401 after long uptime) + visible app logs + self-diagnosing backend 401
-- **1.1.17** — MCP OAuth tokens persist across restart; connected clients no longer re-authorize on every redeploy (this release)
+- **1.1.17** — MCP OAuth tokens persist across restart; connected clients no longer re-authorize on every redeploy
+- **1.1.18** — Local-LLM contract: no-think connection probe + fail-fast probe timeout + optional LEMONADE_API_KEY env for local-server auth (this release)
 
 ## How to check the running version
 

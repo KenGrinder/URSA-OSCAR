@@ -179,6 +179,12 @@ Three layers guard against it now:
 2. **The per-turn line flags `⚠ truncated`** whenever `finish_reason = length`, so a truncation is never silent. If you see it, raise Max output tokens (or lower the model's reasoning effort at the LocalAI side — a reasoning-budget knob caps the thinking at the source, the highest-leverage fix if your endpoint exposes it).
 3. **Reasoning-as-answer fallback**: if a turn finishes with only a reasoning trail and no answer text, URSA renders the reasoning as the answer instead of a blank bubble — partial thinking beats nothing.
 
+## Local servers that think by default + optional auth (as of 1.1.18)
+
+Some local inference servers (e.g. recent Lemonade builds) now run with reasoning **on by default**, and the only switch that turns it off is the *nested* `chat_template_kwargs.enable_thinking` field — a top-level `enable_thinking` is ignored. URSA's chat path wants reasoning, captures it, and falls back to it (above), so ordinary chat is unaffected. The one place it matters is the Settings → **Test connection** probe: a 1-token probe against a think-by-default server would spend that token thinking and come back empty, so as of 1.1.18 the probe explicitly disables thinking and tests real reachability. The probe also uses a short 15-second connect timeout so an unreachable server fails fast.
+
+If your local server starts **requiring an API key**, you have two options: enter it in Settings → AI Assistant like any other provider key (stored encrypted, works for every provider), or — if you run several homelab apps against the same box — set `LEMONADE_API_KEY` in the API container's environment. URSA sends it as a Bearer token **only** for the Local LLM provider, and only when no key is stored in Settings; a stored key always wins, and the environment key is never attached to a cloud provider's request.
+
 ## Per-turn observability (as of 1.1.14)
 
 You can't cut what you can't see. Every completed assistant turn now shows a small **per-turn line** underneath it:
