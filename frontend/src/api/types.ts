@@ -348,6 +348,10 @@ export interface AiMaskedConfig {
   // large default, so long cloud answers aren't truncated).
   max_output_tokens: number | null;
   effective_max_output_tokens: number | null;
+  // 1.1.19 — whether the LOCAL model reasons on chat turns. Local provider
+  // only; default false. The box runs server-side reasoning off, so URSA
+  // sends this explicitly rather than inheriting the box default.
+  local_thinking: boolean;
   api_key_set: boolean;
   api_keys_set: Record<string, boolean>;
 }
@@ -362,6 +366,7 @@ export interface AiConfigPatch {
   custom_system_prompt?: string | null;
   timeout_seconds?: number | null;
   max_output_tokens?: number | null;
+  local_thinking?: boolean;
   api_key?: string;  // never returned, only sent
 }
 

@@ -49,6 +49,9 @@ export default function SettingsAi() {
     // as timeout_seconds). Blank = None → use family default (4000 for
     // local; the provider's own large default for cloud).
     max_output_tokens: string;
+    // 1.1.19 — whether the local model reasons on chat turns (local
+    // provider only; default off).
+    local_thinking: boolean;
     api_key: string;      // empty if not editing
   }>({
     enabled: false,
@@ -60,6 +63,7 @@ export default function SettingsAi() {
     custom_system_prompt: '',
     timeout_seconds: '',
     max_output_tokens: '',
+    local_thinking: false,
     api_key: '',
   });
 
@@ -108,6 +112,7 @@ export default function SettingsAi() {
           // effective value is shown as the placeholder.
           max_output_tokens:
             cfg.max_output_tokens != null ? String(cfg.max_output_tokens) : '',
+          local_thinking: cfg.local_thinking ?? false,
           api_key: '',
         });
       })
@@ -252,6 +257,9 @@ export default function SettingsAi() {
         }
         patch.max_output_tokens = parsedMax;
       }
+      // 1.1.19 — local thinking toggle. Always sent (it's a plain bool);
+      // the backend ignores it for non-local providers.
+      patch.local_thinking = edit.local_thinking;
       if (edit.api_key) patch.api_key = edit.api_key;
       const updated = await api.patchAiConfig(patch);
       setConfig(updated);
@@ -558,6 +566,30 @@ export default function SettingsAi() {
               per-turn line), raise this. Range 256-32000.
             </span>
           </div>
+
+          {/* 1.1.19 — local-model thinking toggle. Only meaningful for the
+              Local LLM provider (cloud models manage their own reasoning),
+              so only show it there. Default off = the fast local answer;
+              turn on for deeper multi-step analytics reasoning. */}
+          {edit.provider_id === 'local' && (
+            <div className="field" style={{ marginBottom: '0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={edit.local_thinking}
+                  onChange={(e) => setEdit({ ...edit, local_thinking: e.target.checked })}
+                  style={{ width: 'auto' }}
+                />
+                Let the local model think before answering
+              </label>
+              <span className="stat-sub" style={{ color: 'var(--text-muted)' }}>
+                Off (default) is faster — the model answers directly. On lets
+                it reason step-by-step first, which helps multi-step analytics
+                questions (trends, correlations, "should I ask my doctor about
+                X") at the cost of extra latency. Applies to local models only.
+              </span>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
             <button
