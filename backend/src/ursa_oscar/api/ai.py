@@ -99,6 +99,9 @@ class ConfigUpdate(BaseModel):
     # default (4000 local, provider's own for cloud). Range guarded on
     # the store side (256-32000).
     max_output_tokens: int | None = None
+    # 1.1.19 — whether the local model reasons on chat turns. Only applied
+    # for the local provider; cloud providers ignore it.
+    local_thinking: bool | None = None
     api_key: str | None = None
 
 
@@ -128,6 +131,10 @@ class MaskedConfig(BaseModel):
     # default, a number for local).
     max_output_tokens: int | None
     effective_max_output_tokens: int | None
+    # 1.1.19 — whether the local model thinks on chat turns (operator knob,
+    # local provider only; default off). The UI shows this toggle only when
+    # the Local LLM provider is selected.
+    local_thinking: bool
     api_key_set: bool
     # Per-provider api_key_set map so the Settings UI can show which
     # providers have keys stored without revealing which is selected.
@@ -193,6 +200,7 @@ def get_config(request: Request) -> MaskedConfig:
         effective_timeout_seconds=effective_to,
         max_output_tokens=cfg.max_output_tokens,
         effective_max_output_tokens=effective_max_tok,
+        local_thinking=cfg.local_thinking,
         api_key_set=selected_key_set,
         api_keys_set=keys_set,
     )

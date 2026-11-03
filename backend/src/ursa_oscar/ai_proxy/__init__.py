@@ -130,6 +130,15 @@ def build_adapter(provider_id: str, config_dict: dict, api_key: str | None):
     max_tokens = _effective_max_tokens(
         provider_id, config_dict.get("max_output_tokens"),
     )
+    # 1.1.19 — resolve the per-request thinking flag. ONLY the local
+    # provider gets an explicit chat_template_kwargs.enable_thinking; every
+    # cloud provider gets None so the field is omitted (they don't speak it
+    # and some reject unknown body fields). Same local-only scoping as the
+    # api-key and max-tokens resolvers above.
+    enable_thinking = (
+        bool(config_dict.get("local_thinking", False))
+        if provider_id == "local" else None
+    )
 
     cls = ClaudeAdapter if preset.adapter == "claude" else OpenAiCompatAdapter
     return cls(
@@ -139,4 +148,5 @@ def build_adapter(provider_id: str, config_dict: dict, api_key: str | None):
         extra_headers=headers,
         timeout_seconds=timeout,
         max_output_tokens=max_tokens,
+        enable_thinking=enable_thinking,
     )

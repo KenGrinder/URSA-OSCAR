@@ -71,6 +71,26 @@ class AiProxyConfig(BaseModel):
     # reasoning-starve trap), 32000 ceiling (above any real chat answer;
     # a bigger number is almost always a misconfiguration).
     max_output_tokens: int | None = Field(default=None, ge=256, le=32000)
+    # 1.1.19 — whether the LOCAL model should think (reasoning channel) on
+    # chat turns. Only meaningful for provider_id="local"; cloud providers
+    # ignore it (URSA never sends chat_template_kwargs to them).
+    #
+    # Why a per-request flag at all: the shared Lemonade box runs with
+    # server-side reasoning OFF, and that server flag is NOT the per-request
+    # control — the ONLY field that works is the nested
+    # chat_template_kwargs.enable_thinking, verified against Gemma-4-26B
+    # (top-level reasoning/reasoning_effort is ignored). If URSA omits it,
+    # the box default (OFF) silently wins and the assistant never reasons,
+    # regardless of the question. So URSA now sends it EXPLICITLY on every
+    # local chat turn and controls it here rather than inheriting the box.
+    #
+    # Default OFF: the fast local experience, zero behaviour change on the
+    # current box, and reasoning becomes an opt-in for deeper analytics
+    # interpretation. When ON, the 4000-token local max_tokens cap +
+    # reasoning capture/fallback (1.1.14) cover the "reasoning spends the
+    # budget before content" trap. This is a single boolean, NOT a
+    # reasoning-level system.
+    local_thinking: bool = False
     # Forward-compat: extra provider-specific config (e.g., temperature)
     # without bumping the schema. Currently unused.
     extra: dict[str, Any] = Field(default_factory=dict)

@@ -218,6 +218,16 @@ class OpenAiCompatAdapter(ProviderAdapter):
         # answers, a regression. See ai_proxy._effective_max_tokens.
         if self.max_output_tokens is not None:
             body["max_tokens"] = int(self.max_output_tokens)
+        # 1.1.19 — explicit per-request thinking control for the local
+        # provider. The shared Lemonade box runs server-side reasoning OFF,
+        # and that flag is NOT the per-request lever — the only field that
+        # works is the nested chat_template_kwargs.enable_thinking (verified
+        # against Gemma-4-26B; top-level reasoning/reasoning_effort ignored).
+        # We send it EXPLICITLY so the box default never silently decides
+        # whether the assistant reasons. None (every cloud provider) omits
+        # the field — they don't understand it and some reject it.
+        if self.enable_thinking is not None:
+            body["chat_template_kwargs"] = {"enable_thinking": bool(self.enable_thinking)}
         return body
 
     # ----- streaming response decode -----

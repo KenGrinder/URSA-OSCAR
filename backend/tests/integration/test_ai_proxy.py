@@ -386,6 +386,63 @@ def test_build_adapter_stored_key_beats_env_for_local(monkeypatch):
     assert local.extra_headers.get("Authorization") == "Bearer stored-key"
 
 
+def test_build_adapter_scopes_enable_thinking_to_local():
+    """1.1.19 — the thinking flag is resolved only for the local provider.
+    Cloud providers get None so chat_template_kwargs is never sent to an
+    endpoint that doesn't speak it."""
+    local_on = build_adapter("local", {"model": "gemma", "local_thinking": True}, None)
+    assert local_on is not None and local_on.enable_thinking is True
+
+    local_off = build_adapter("local", {"model": "gemma", "local_thinking": False}, None)
+    assert local_off is not None and local_off.enable_thinking is False
+
+    # Omitted -> default False for local (explicit flag, box default never wins).
+    local_default = build_adapter("local", {"model": "gemma"}, None)
+    assert local_default is not None and local_default.enable_thinking is False
+
+    # Cloud providers: None regardless of a stray local_thinking in config.
+    for cloud in ("openai", "gemini", "claude", "groq", "openrouter", "custom"):
+        a = build_adapter(cloud, {"model": "m", "local_thinking": True}, "k")
+        assert a is not None and a.enable_thinking is None, cloud
+
+
+def test_openai_compat_body_sends_enable_thinking_only_when_set():
+    """The nested chat_template_kwargs.enable_thinking is the ONLY lever
+    the box honours; it must be present on local calls and absent on cloud."""
+    local = OpenAiCompatAdapter(
+        api_key=None, endpoint="http://box:13305/v1", model="gemma",
+        enable_thinking=True,
+    )
+    body = local._build_request(
+        messages=[AiMessage(role="user", content="hi")], tools=[], system_prompt="s",
+    )
+    assert body["chat_template_kwargs"] == {"enable_thinking": True}
+
+    off = OpenAiCompatAdapter(
+        api_key=None, endpoint="http://box:13305/v1", model="gemma",
+        enable_thinking=False,
+    )
+    body_off = off._build_request(
+        messages=[AiMessage(role="user", content="hi")], tools=[], system_prompt="s",
+    )
+    assert body_off["chat_template_kwargs"] == {"enable_thinking": False}
+
+    cloud = OpenAiCompatAdapter(
+        api_key="k", endpoint="https://api.openai.com/v1", model="gpt-4o",
+        enable_thinking=None,
+    )
+    body_cloud = cloud._build_request(
+        messages=[AiMessage(role="user", content="hi")], tools=[], system_prompt="s",
+    )
+    assert "chat_template_kwargs" not in body_cloud
+
+
+def test_config_store_local_thinking_defaults_off(tmp_path):
+    from ursa_oscar.ai_proxy.config_store import AiProxyConfig
+    assert AiProxyConfig().local_thinking is False
+    assert AiProxyConfig(local_thinking=True).local_thinking is True
+
+
 async def test_test_connection_probe_disables_thinking(monkeypatch):
     """Post-upgrade the local box thinks by default; a 1-token probe would
     spend that token on reasoning and come back empty, misreporting a

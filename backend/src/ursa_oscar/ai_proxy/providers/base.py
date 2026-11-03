@@ -128,6 +128,7 @@ class ProviderAdapter(ABC):
         extra_headers: dict | None = None,
         timeout_seconds: float | None = None,
         max_output_tokens: int | None = None,
+        enable_thinking: bool | None = None,
         **kwargs: Any,
     ) -> None:
         self.api_key = api_key
@@ -152,6 +153,14 @@ class ProviderAdapter(ABC):
         # number for the local family and None for cloud. See
         # ai_proxy._effective_max_tokens.
         self.max_output_tokens = max_output_tokens
+        # 1.1.19 — per-request thinking control for the local provider.
+        #   None  → omit chat_template_kwargs entirely (cloud providers;
+        #           they don't understand the field and some reject it).
+        #   bool  → send chat_template_kwargs.enable_thinking explicitly
+        #           (local provider), overriding the box's server default.
+        # build_adapter() resolves this to the operator's local_thinking
+        # setting for the local provider and None for everyone else.
+        self.enable_thinking = enable_thinking
 
     @abstractmethod
     async def chat(
