@@ -43,7 +43,7 @@
 
 services:
   ursa-oscar-api:
-    image: brain40/ursa-oscar-api:1.1.18
+    image: brain40/ursa-oscar-api:1.1.19
     container_name: ursa-oscar-api
     environment:
       URSA_OSCAR_DB_PATH: /data/ursa-oscar.duckdb
@@ -62,7 +62,7 @@ services:
       # per-instance secret at /data/jwt_secret on first boot (mode 0600).
       # Set explicitly only if you want to manage rotation yourself.
       URSA_OSCAR_JWT_SECRET: ${URSA_OSCAR_JWT_SECRET:-}
-      # 1.1.18 — OPTIONAL. If your LOCAL LLM server requires an API key, you
+      # 1.1.19 — OPTIONAL. If your LOCAL LLM server requires an API key, you
       # can supply it here instead of in Settings. URSA sends it as a Bearer
       # token ONLY for the "Local LLM" provider, and only when no key is
       # stored in Settings (a stored key wins). Never sent to a cloud
@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
 
   ursa-oscar-web:
-    image: brain40/ursa-oscar-web:1.1.18
+    image: brain40/ursa-oscar-web:1.1.19
     container_name: ursa-oscar-web
     ports:
       # Web UI on host port 5063. Change the LEFT side (5063) if that
@@ -87,7 +87,7 @@ services:
       - ursa-oscar-api
 
   ursa-oscar-watcher:
-    image: brain40/ursa-oscar-watcher:1.1.18
+    image: brain40/ursa-oscar-watcher:1.1.19
     container_name: ursa-oscar-watcher
     environment:
       # Outgoing API bearer token. OPTIONAL override; when unset, the
@@ -126,7 +126,7 @@ services:
   # ==========================================================================
   #
   # ursa-oscar-mcp:
-  #   image: brain40/ursa-oscar-mcp:1.1.18
+  #   image: brain40/ursa-oscar-mcp:1.1.19
   #   container_name: ursa-oscar-mcp
   #   environment:
   #     URSA_OSCAR_API_URL: http://ursa-oscar-api:8000
@@ -152,7 +152,7 @@ services:
   #   volumes:
   #     # EDIT THIS LINE for your platform (see comment block at top).
   #     # MCP needs :rw (no :ro) to persist OAuth state on /data: the
-  #     # DCR client store (1.1.5) AND, as of 1.1.18, the issued-token
+  #     # DCR client store (1.1.5) AND, as of 1.1.19, the issued-token
   #     # store (/data/mcp_oauth_tokens.json) that lets connected clients
   #     # survive a container restart without re-authorizing.
   #     - /srv/ursa-oscar/data:/data

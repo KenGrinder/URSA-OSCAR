@@ -4,6 +4,14 @@ URSA-OSCAR ships as four Docker images that are versioned together. The version 
 
 ## Current version
 
+**1.1.19** — Explicit control over whether your local model "thinks" before answering, with a new Settings toggle.
+
+Reasoning-capable local servers (e.g. Lemonade running Gemma) decide whether to reason **per request**, and — verified against Gemma-4-26B — the only field that actually controls it is a nested `chat_template_kwargs.enable_thinking` flag; a server-wide reasoning setting does not decide it for an individual call. Before 1.1.19 URSA didn't send that flag, so whatever the server happened to default to silently decided whether the assistant reasoned — and the shared box now defaults it **off**, meaning the assistant was answering directly even on questions where step-by-step reasoning would help.
+
+URSA now sends the flag **explicitly** on every local chat turn and gives you the switch: **Settings → AI Assistant → "Let the local model think before answering"** (shown only when the Local LLM provider is selected). It's **off by default** — the fast path, and no change from how the current box already behaves — and you turn it on for deeper multi-step analytics questions (trend interpretation, correlations, framing a question for your doctor) at the cost of some extra latency. When it's on, URSA's existing 4000-token local cap and reasoning-channel capture already prevent the "thinking eats the whole budget and the answer comes back blank" trap. It's a single on/off switch, not a tiered reasoning system.
+
+Cloud providers (Claude, OpenAI, Gemini, OpenRouter, Groq) are untouched — the flag is sent only to the local provider, never to an endpoint that wouldn't understand it. This is a refinement of 1.1.18's local-contract work.
+
 **1.1.18** — Local-LLM request contract updated for the upgraded inference box. Keeps the AI assistant working after a server-side thinking/auth change.
 
 A sibling homelab upgraded its self-hosted inference server (~Oct 2026) and three request behaviours changed for every caller. URSA was already hardened against most of it by 1.1.11 and 1.1.14 — it captures the reasoning channel and falls back to it when the answer is empty, sends a generous 4000-token cap to local models, and uses a structured timeout with a 300-second read for local providers. Three smaller gaps are closed here:
@@ -181,7 +189,8 @@ The path to 1.0 is captured in the Docs/WIP/ build handovers in the repository. 
 - **1.1.15** — AI metric vocabulary derived from the resolver; kills the wasted tool round on metric questions
 - **1.1.16** — Service tokens self-renew (no more MCP/watcher 401 after long uptime) + visible app logs + self-diagnosing backend 401
 - **1.1.17** — MCP OAuth tokens persist across restart; connected clients no longer re-authorize on every redeploy
-- **1.1.18** — Local-LLM contract: no-think connection probe + fail-fast probe timeout + optional LEMONADE_API_KEY env for local-server auth (this release)
+- **1.1.18** — Local-LLM contract: no-think connection probe + fail-fast probe timeout + optional LEMONADE_API_KEY env for local-server auth
+- **1.1.19** — Explicit `enable_thinking` on local chat + operator toggle (default off); URSA controls reasoning instead of inheriting the box default (this release)
 
 ## How to check the running version
 
